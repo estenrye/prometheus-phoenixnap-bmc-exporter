@@ -35,7 +35,7 @@ func main() {
 	log.SetFormatter(bmc_exporter_configuration.GetLogFormatter())
 	log.SetLevel(bmc_exporter_configuration.GetLogLevel())
 
-	log.WithField("bmc_exporter_configuration", bmc_exporter_configuration).Tracef("BMC API configuration", bmc_exporter_configuration)
+	log.WithField("bmc_exporter_configuration", bmc_exporter_configuration).Trace("BMC API configuration", bmc_exporter_configuration)
 
 	reg := prometheus.NewRegistry()
 	if *collectGoMetrics {
