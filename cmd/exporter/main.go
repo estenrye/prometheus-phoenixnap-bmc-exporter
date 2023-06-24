@@ -3,9 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 
+	log "github.com/sirupsen/logrus"
+
+	exporter "github.com/estenrye/prometheus-phoenix-nap-exporter"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -13,10 +15,27 @@ import (
 
 func main() {
 	var (
-		promPort         = flag.Int("prometheus.port", 9150, "port to expose prometheus metrics")
-		collectGoMetrics = flag.Bool("go.collector.enabled", false, "flag to enable go collector metrics")
+		bmcClientCredentialsFile = flag.String("configFile", "", "Location of the PhoenixNAP BMC API credentials file")
+		bmcOauth2ClientId        = flag.String("clientId", "", "Client Id used to authenticate to the PhoenixNAP BMC API")
+		bmcOauth2ClientSecret    = flag.String("clientSecret", "", "Client Secret used to authenticate to the PhoenixNAP BMC API")
+		bmcApiTokenUrl           = flag.String("tokenUrl", "", "Base Url for the PhoenixNAP BMC API")
+		promPort                 = flag.Int("prometheus.port", 9150, "port to expose prometheus metrics")
+		collectGoMetrics         = flag.Bool("go.collector.enabled", false, "flag to enable go collector metrics")
+		logFormat                = flag.String("log.format", "", "Selects the log format. Expects: 'json' or 'text'")
+		logLevel                 = flag.String("log.level", "", "Sets the minimum level of logs displayed. Expects: 'panic', 'fatal', 'warning', 'info', 'debug', or 'trace'")
 	)
 	flag.Parse()
+
+	bmc_exporter_configuration := exporter.NewBmcApiConfiguration(
+		*bmcClientCredentialsFile,
+		*bmcOauth2ClientId,
+		*bmcOauth2ClientSecret,
+		*bmcApiTokenUrl).SetLogFormat(*logFormat).SetLogLevel(*logLevel)
+
+	log.SetFormatter(bmc_exporter_configuration.GetLogFormatter())
+	log.SetLevel(bmc_exporter_configuration.GetLogLevel())
+
+	log.WithField("bmc_exporter_configuration", bmc_exporter_configuration).Tracef("BMC API configuration", bmc_exporter_configuration)
 
 	reg := prometheus.NewRegistry()
 	if *collectGoMetrics {
