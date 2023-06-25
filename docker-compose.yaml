@@ -1,0 +1,46 @@
+---
+networks:
+  exporter:
+services:
+  prometheus-phoenixnap-bmc-exporter:
+    build: .
+    image: estenrye/prometheus-phoenixnap-bmc-exporter
+    ports:
+      - 9150:9150
+    command:
+      - -configFile
+      - /pnap/config.yaml
+    volumes:
+      - type: bind
+        source: ~/.pnap
+        target: /pnap
+    networks:
+      - exporter
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - 9090:9090
+    restart: unless-stopped
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - promData:/prometheus
+    networks:
+      - exporter
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - 3000:3000
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=grafana
+    volumes:
+      - ./grafana:/etc/grafana/provisioning/datasources
+    networks:
+      - exporter
+volumes:
+  promData:
