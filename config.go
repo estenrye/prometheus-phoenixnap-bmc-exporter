@@ -74,15 +74,15 @@ func (m BmcApiConfiguration) GetLogLevel() log.Level {
 	return level
 }
 
-func (m BmcApiConfiguration) ToClientCredentials() *clientcredentials.Config {
+func (m BmcApiConfiguration) ToClientCredentials() clientcredentials.Config {
 	config := clientcredentials.Config{
 		ClientID:     m.ClientId,
-		ClientSecret: m.ClientId,
+		ClientSecret: m.ClientSecret,
 		TokenURL:     m.TokenUrl,
 		Scopes:       []string{"bmc", "bmc.read"},
 	}
 
-	return &config
+	return config
 }
 
 func (m BmcApiConfiguration) String() string {

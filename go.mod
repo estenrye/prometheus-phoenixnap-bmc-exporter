@@ -3,6 +3,8 @@ module github.com/estenrye/prometheus-phoenix-nap-exporter
 go 1.19
 
 require (
+	github.com/phoenixnap/go-sdk-bmc/billingapi v1.3.1
+	github.com/phoenixnap/go-sdk-bmc/bmcapi v1.2.2
 	github.com/prometheus/client_golang v1.16.0
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/oauth2 v0.5.0
