@@ -9,12 +9,15 @@ import (
 var _ prometheus.Collector = &quotaCollector{}
 
 type quotaCollector struct {
-	ServersMaxLimit          *prometheus.Desc
-	ServersUsedCount         *prometheus.Desc
 	PublicIpMaxLimit         *prometheus.Desc
 	PublicIpUsedCount        *prometheus.Desc
+	PublicIpUsedRate         *prometheus.Desc
+	ServersMaxLimit          *prometheus.Desc
+	ServersUsedCount         *prometheus.Desc
+	ServersUsedRate          *prometheus.Desc
 	StorageNetworksMaxLimit  *prometheus.Desc
 	StorageNetworksUsedCount *prometheus.Desc
+	StorageNetworksUsedRate  *prometheus.Desc
 
 	stats func() ([]QuotaStats, error)
 }
@@ -33,6 +36,12 @@ func NewQuotaCollector(stats func() ([]QuotaStats, error)) prometheus.Collector 
 			[]string{},
 			nil,
 		),
+		PublicIpUsedRate: prometheus.NewDesc(
+			"bmc_quota_public_ip_used_rate",
+			"Percentage of Public IP Addresses that are currently provisioned vs. the number available to provision.",
+			[]string{},
+			nil,
+		),
 		ServersMaxLimit: prometheus.NewDesc(
 			"bmc_quota_servers_max_limit",
 			"Maximum number of servers that can be provisioned on the PhoenixNAP BMC API.",
@@ -42,6 +51,12 @@ func NewQuotaCollector(stats func() ([]QuotaStats, error)) prometheus.Collector 
 		ServersUsedCount: prometheus.NewDesc(
 			"bmc_quota_servers_used_count",
 			"Number of servers that are currently provisioned on the PhoenixNAP BMC API.",
+			[]string{},
+			nil,
+		),
+		ServersUsedRate: prometheus.NewDesc(
+			"bmc_quota_servers_used_rate",
+			"Percentage of Serverss that are currently provisioned vs. the number available to provision.",
 			[]string{},
 			nil,
 		),
@@ -57,6 +72,12 @@ func NewQuotaCollector(stats func() ([]QuotaStats, error)) prometheus.Collector 
 			[]string{},
 			nil,
 		),
+		StorageNetworksUsedRate: prometheus.NewDesc(
+			"bmc_quota_storage_network_used_rate",
+			"Percentage of Public IP Addresses that are currently provisioned vs. the number available to provision.",
+			[]string{},
+			nil,
+		),
 		stats: stats,
 	}
 
@@ -68,10 +89,13 @@ func (c *quotaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ds := []*prometheus.Desc{
 		c.PublicIpMaxLimit,
 		c.PublicIpMaxLimit,
+		c.PublicIpUsedRate,
 		c.ServersMaxLimit,
 		c.ServersUsedCount,
+		c.ServersUsedRate,
 		c.StorageNetworksMaxLimit,
 		c.StorageNetworksUsedCount,
+		c.StorageNetworksUsedRate,
 	}
 
 	for _, d := range ds {
@@ -85,10 +109,13 @@ func (c *quotaCollector) Collect(ch chan<- prometheus.Metric) {
 		log.WithError(err).Error("Error encountered when collecting metric.")
 		ch <- prometheus.NewInvalidMetric(c.PublicIpMaxLimit, err)
 		ch <- prometheus.NewInvalidMetric(c.PublicIpUsedCount, err)
+		ch <- prometheus.NewInvalidMetric(c.PublicIpUsedRate, err)
 		ch <- prometheus.NewInvalidMetric(c.ServersMaxLimit, err)
 		ch <- prometheus.NewInvalidMetric(c.ServersUsedCount, err)
+		ch <- prometheus.NewInvalidMetric(c.ServersUsedRate, err)
 		ch <- prometheus.NewInvalidMetric(c.StorageNetworksMaxLimit, err)
 		ch <- prometheus.NewInvalidMetric(c.StorageNetworksUsedCount, err)
+		ch <- prometheus.NewInvalidMetric(c.StorageNetworksUsedRate, err)
 		return
 	}
 
@@ -104,6 +131,11 @@ func (c *quotaCollector) Collect(ch chan<- prometheus.Metric) {
 			s.PublicIpUsedCount,
 		)
 		ch <- prometheus.MustNewConstMetric(
+			c.PublicIpUsedRate,
+			prometheus.GaugeValue,
+			s.PublicIpUsedRate,
+		)
+		ch <- prometheus.MustNewConstMetric(
 			c.ServersMaxLimit,
 			prometheus.GaugeValue,
 			s.ServersMaxLimit,
@@ -114,6 +146,11 @@ func (c *quotaCollector) Collect(ch chan<- prometheus.Metric) {
 			s.ServersUsedCount,
 		)
 		ch <- prometheus.MustNewConstMetric(
+			c.ServersUsedRate,
+			prometheus.GaugeValue,
+			s.ServersUsedRate,
+		)
+		ch <- prometheus.MustNewConstMetric(
 			c.StorageNetworksMaxLimit,
 			prometheus.GaugeValue,
 			s.StorageNetworksMaxLimit,
@@ -122,6 +159,11 @@ func (c *quotaCollector) Collect(ch chan<- prometheus.Metric) {
 			c.StorageNetworksUsedCount,
 			prometheus.GaugeValue,
 			s.StorageNetworksUsedCount,
+		)
+		ch <- prometheus.MustNewConstMetric(
+			c.StorageNetworksUsedRate,
+			prometheus.GaugeValue,
+			s.StorageNetworksUsedRate,
 		)
 	}
 }
