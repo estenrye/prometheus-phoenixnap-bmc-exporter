@@ -37,14 +37,22 @@ func main() {
 
 	log.WithField("bmc_exporter_configuration", bmc_exporter_configuration).Trace("BMC API configuration", bmc_exporter_configuration)
 
-	quotaStats := func() ([]exporter.QuotaStats, error) { return exporter.GetBmcQuotas(*bmc_exporter_configuration) }
+	quotaStats := func() ([]exporter.QuotaStats, error) {
+		return exporter.GetBmcQuotas(*bmc_exporter_configuration)
+	}
+	reservationStats := func() ([]exporter.ReservationStats, error) {
+		return exporter.GetBmcReservations(*bmc_exporter_configuration)
+	}
+
 	qc := exporter.NewQuotaCollector(quotaStats)
+	rc := exporter.NewReservationCollector(reservationStats)
 
 	reg := prometheus.NewRegistry()
 	if *collectGoMetrics {
 		reg.MustRegister(collectors.NewGoCollector())
 	}
 	reg.MustRegister(qc)
+	reg.MustRegister(rc)
 
 	mux := http.NewServeMux()
 	promHandler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
