@@ -43,9 +43,13 @@ func main() {
 	reservationStats := func() ([]exporter.ReservationStats, error) {
 		return exporter.GetBmcReservations(*bmc_exporter_configuration)
 	}
+	ratedUsageStats := func() ([]exporter.RatedUsageStats, error) {
+		return exporter.GetRatedUsageStats(*bmc_exporter_configuration)
+	}
 
 	qc := exporter.NewQuotaCollector(quotaStats)
 	rc := exporter.NewReservationCollector(reservationStats)
+	ru := exporter.NewRatedUsageCollector(ratedUsageStats)
 
 	reg := prometheus.NewRegistry()
 	if *collectGoMetrics {
@@ -53,6 +57,7 @@ func main() {
 	}
 	reg.MustRegister(qc)
 	reg.MustRegister(rc)
+	reg.MustRegister(ru)
 
 	mux := http.NewServeMux()
 	promHandler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
