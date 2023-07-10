@@ -1125,6 +1125,17 @@
             "rowField": "yearMonth",
             "valueField": "Value (max)"
           }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "yearMonth\\priceModel"
+              }
+            ]
+          }
         }
       ],
       "type": "barchart"

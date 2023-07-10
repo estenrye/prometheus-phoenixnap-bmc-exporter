@@ -1,6 +1,8 @@
 package exporter
 
 import (
+	"time"
+
 	"github.com/phoenixnap/go-sdk-bmc/billingapi"
 	log "github.com/sirupsen/logrus"
 )
@@ -21,32 +23,65 @@ type RatedUsageStats struct {
 	BillingTags     []RatedUsageTagInfo
 }
 
+var priorMonthsRatedUsageLoaded bool = false
+
 func GetRatedUsageStats(config BmcApiConfiguration) ([]RatedUsageStats, error) {
 	apiClient := getBillingApiClient(config.ToClientCredentials())
 
 	var stats []RatedUsageStats
 
-	resp, r, err := apiClient.RatedUsageApi.RatedUsageMonthToDateGet(getContext()).ProductCategory(billingapi.SERVER).Execute()
-	if err != nil {
-		log.WithField("HttpResponse", r).WithError(err).Error("Error when calling `RatedUsageApi.RatedUsageMonthToDateGet`.")
-		return stats, err
-	}
+	log.WithField("priorMonthsRatedUsageLoaded", priorMonthsRatedUsageLoaded).Trace("Prior Month Load State")
 
-	for _, ratedUsage := range resp {
-		var ratedUsageStat RatedUsageStats
+	if !priorMonthsRatedUsageLoaded && config.HistoricalRatedUsage.Enable {
+		toDate := time.Now().Format("2006-01")
+		fromDate := time.Now().AddDate(0, -config.HistoricalRatedUsage.NumberOfPriorMonths, 0).Format("2006-01")
+		log.WithField("ToYearMonth", toDate).WithField("FromYearMonth", fromDate).WithField("ProductCategory", billingapi.SERVER).Trace("Call RatedUsageGet")
 
-		if ratedUsage.ServerRecord.GetActive() {
-			ratedUsageStat.Cost = float64(ratedUsage.ServerRecord.GetCost()) / float64(100)
-			ratedUsageStat.Hostname = ratedUsage.ServerRecord.GetMetadata().Hostname
-			ratedUsageStat.Location = string(ratedUsage.ServerRecord.GetLocation())
-			ratedUsageStat.PriceModel = ratedUsage.ServerRecord.GetPriceModel()
-			ratedUsageStat.ProductCategory = ratedUsage.ServerRecord.GetProductCategory()
-			ratedUsageStat.ProductCode = ratedUsage.ServerRecord.GetProductCode()
-			ratedUsageStat.YearMonth = ratedUsage.ServerRecord.GetYearMonth()
-			ratedUsageStat.BillingTags = make([]RatedUsageTagInfo, 0)
+		resp, r, err := apiClient.RatedUsageApi.RatedUsageGet(getContext()).FromYearMonth(fromDate).ToYearMonth(toDate).ProductCategory(billingapi.SERVER).Execute()
+		if err != nil {
+			log.WithField("HttpResponse", r).WithError(err).Error("Error when calling `RatedUsageApi.RatedUsageGet`.")
+			return stats, err
+		}
 
-			stats = append(stats, ratedUsageStat)
+		for _, ratedUsage := range resp {
+			if ratedUsageStat := ConvertRatedUsageServerRecordToStats(ratedUsage.ServerRecord); ratedUsageStat != nil {
+				stats = append(stats, *ratedUsageStat)
+			}
+		}
+
+		priorMonthsRatedUsageLoaded = true
+	} else {
+		resp, r, err := apiClient.RatedUsageApi.RatedUsageMonthToDateGet(getContext()).ProductCategory(billingapi.SERVER).Execute()
+		if err != nil {
+			log.WithField("HttpResponse", r).WithError(err).Error("Error when calling `RatedUsageApi.RatedUsageMonthToDateGet`.")
+			return stats, err
+		}
+
+		for _, ratedUsage := range resp {
+			if ratedUsageStat := ConvertRatedUsageServerRecordToStats(ratedUsage.ServerRecord); ratedUsageStat != nil {
+				stats = append(stats, *ratedUsageStat)
+			}
 		}
 	}
+
 	return stats, nil
+}
+
+func ConvertRatedUsageServerRecordToStats(record *billingapi.ServerRecord) *RatedUsageStats {
+	var ratedUsageStat RatedUsageStats
+
+	if record.GetActive() {
+		ratedUsageStat.Cost = float64(record.GetCost()) / float64(100)
+		ratedUsageStat.Hostname = record.GetMetadata().Hostname
+		ratedUsageStat.Location = string(record.GetLocation())
+		ratedUsageStat.PriceModel = record.GetPriceModel()
+		ratedUsageStat.ProductCategory = record.GetProductCategory()
+		ratedUsageStat.ProductCode = record.GetProductCode()
+		ratedUsageStat.YearMonth = record.GetYearMonth()
+		ratedUsageStat.BillingTags = make([]RatedUsageTagInfo, 0)
+
+		return &ratedUsageStat
+	}
+
+	return nil
 }

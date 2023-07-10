@@ -15,11 +15,17 @@ type LogConfiguration struct {
 	Level  string `yaml:"level,omitempty"`
 }
 
+type HistoricalRatedUsage struct {
+	Enable              bool `yaml:"enable,omitempty"`
+	NumberOfPriorMonths int  `yaml:"numberOfPriorMonths,omitempty"`
+}
+
 type BmcApiConfiguration struct {
-	ClientId     string           `yaml:"clientId"`
-	ClientSecret string           `yaml:"clientSecret"`
-	TokenUrl     string           `yaml:"tokenUrl"`
-	Log          LogConfiguration `yaml:"log,omitempty"`
+	ClientId             string               `yaml:"clientId"`
+	ClientSecret         string               `yaml:"clientSecret"`
+	TokenUrl             string               `yaml:"tokenUrl"`
+	Log                  LogConfiguration     `yaml:"log,omitempty"`
+	HistoricalRatedUsage HistoricalRatedUsage `yaml:"historicalRatedUsage,omitempty"`
 }
 
 func (m *BmcApiConfiguration) SetLogFormat(logFormat string) *BmcApiConfiguration {

@@ -26,6 +26,9 @@
     log:
         level: trace
         format: json
+    historicalRatedUsage:
+        enable: true
+        numberOfPriorMonths: 12
     ```
 
 4. Launch a local environment.
