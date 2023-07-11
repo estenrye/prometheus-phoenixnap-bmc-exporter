@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/phoenixnap/go-sdk-bmc/billingapi"
+	"github.com/phoenixnap/go-sdk-bmc/bmcapi"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -27,8 +28,15 @@ var priorMonthsRatedUsageLoaded bool = false
 
 func GetRatedUsageStats(config BmcApiConfiguration) ([]RatedUsageStats, error) {
 	apiClient := getBillingApiClient(config.ToClientCredentials())
+	bmcClient := getBmcApiClient(config.ToClientCredentials())
 
 	var stats []RatedUsageStats
+
+	servers, r, err := bmcClient.ServersApi.ServersGet(getContext()).Execute()
+	if err != nil {
+		log.WithField("HttpResponse", r).WithError(err).Error("Error when calling `ServersApi.ServersGet`.")
+		return stats, err
+	}
 
 	log.WithField("priorMonthsRatedUsageLoaded", priorMonthsRatedUsageLoaded).Trace("Prior Month Load State")
 
@@ -44,7 +52,7 @@ func GetRatedUsageStats(config BmcApiConfiguration) ([]RatedUsageStats, error) {
 		}
 
 		for _, ratedUsage := range resp {
-			if ratedUsageStat := ConvertRatedUsageServerRecordToStats(ratedUsage.ServerRecord); ratedUsageStat != nil {
+			if ratedUsageStat := ConvertRatedUsageServerRecordToStats(ratedUsage.ServerRecord, servers); ratedUsageStat != nil {
 				stats = append(stats, *ratedUsageStat)
 			}
 		}
@@ -58,7 +66,7 @@ func GetRatedUsageStats(config BmcApiConfiguration) ([]RatedUsageStats, error) {
 		}
 
 		for _, ratedUsage := range resp {
-			if ratedUsageStat := ConvertRatedUsageServerRecordToStats(ratedUsage.ServerRecord); ratedUsageStat != nil {
+			if ratedUsageStat := ConvertRatedUsageServerRecordToStats(ratedUsage.ServerRecord, servers); ratedUsageStat != nil {
 				stats = append(stats, *ratedUsageStat)
 			}
 		}
@@ -67,7 +75,7 @@ func GetRatedUsageStats(config BmcApiConfiguration) ([]RatedUsageStats, error) {
 	return stats, nil
 }
 
-func ConvertRatedUsageServerRecordToStats(record *billingapi.ServerRecord) *RatedUsageStats {
+func ConvertRatedUsageServerRecordToStats(record *billingapi.ServerRecord, servers []bmcapi.Server) *RatedUsageStats {
 	var ratedUsageStat RatedUsageStats
 
 	if record.GetActive() {
@@ -78,10 +86,38 @@ func ConvertRatedUsageServerRecordToStats(record *billingapi.ServerRecord) *Rate
 		ratedUsageStat.ProductCategory = record.GetProductCategory()
 		ratedUsageStat.ProductCode = record.GetProductCode()
 		ratedUsageStat.YearMonth = record.GetYearMonth()
-		ratedUsageStat.BillingTags = make([]RatedUsageTagInfo, 0)
+
+		s := GetServerFromList(record.GetId(), servers)
+		ratedUsageStat.BillingTags = GetBillingTagsFromServer(s)
 
 		return &ratedUsageStat
 	}
 
 	return nil
+}
+
+func GetServerFromList(serverId string, servers []bmcapi.Server) *bmcapi.Server {
+	for _, s := range servers {
+		if s.GetId() == serverId {
+			return &s
+		}
+	}
+	return nil
+}
+
+func GetBillingTagsFromServer(server *bmcapi.Server) []RatedUsageTagInfo {
+	tags := make([]RatedUsageTagInfo, 0)
+
+	if server != nil {
+		for _, t := range server.GetTags() {
+			if t.GetIsBillingTag() {
+				tags = append(tags, RatedUsageTagInfo{
+					Key:   t.GetName(),
+					Value: t.GetValue(),
+				})
+			}
+		}
+	}
+
+	return tags
 }
