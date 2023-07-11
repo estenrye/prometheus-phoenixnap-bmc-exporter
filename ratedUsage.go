@@ -44,7 +44,7 @@ func GetRatedUsageStats(config BmcApiConfiguration) ([]RatedUsageStats, error) {
 		}
 
 		for _, ratedUsage := range resp {
-			if ratedUsageStat := ConvertRatedUsageServerRecordToStats(ratedUsage.ServerRecord, config); ratedUsageStat != nil {
+			if ratedUsageStat := ConvertRatedUsageServerRecordToStats(ratedUsage.ServerRecord); ratedUsageStat != nil {
 				stats = append(stats, *ratedUsageStat)
 			}
 		}
@@ -58,7 +58,7 @@ func GetRatedUsageStats(config BmcApiConfiguration) ([]RatedUsageStats, error) {
 		}
 
 		for _, ratedUsage := range resp {
-			if ratedUsageStat := ConvertRatedUsageServerRecordToStats(ratedUsage.ServerRecord, config); ratedUsageStat != nil {
+			if ratedUsageStat := ConvertRatedUsageServerRecordToStats(ratedUsage.ServerRecord); ratedUsageStat != nil {
 				stats = append(stats, *ratedUsageStat)
 			}
 		}
@@ -67,7 +67,7 @@ func GetRatedUsageStats(config BmcApiConfiguration) ([]RatedUsageStats, error) {
 	return stats, nil
 }
 
-func ConvertRatedUsageServerRecordToStats(record *billingapi.ServerRecord, config BmcApiConfiguration) *RatedUsageStats {
+func ConvertRatedUsageServerRecordToStats(record *billingapi.ServerRecord) *RatedUsageStats {
 	var ratedUsageStat RatedUsageStats
 
 	if record.GetActive() {
@@ -78,35 +78,10 @@ func ConvertRatedUsageServerRecordToStats(record *billingapi.ServerRecord, confi
 		ratedUsageStat.ProductCategory = record.GetProductCategory()
 		ratedUsageStat.ProductCode = record.GetProductCode()
 		ratedUsageStat.YearMonth = record.GetYearMonth()
-		ratedUsageStat.BillingTags = GetBillingTagsFromInstance(record.GetMetadata().Id, config)
-
-		log.WithField("ratedUsageStat", ratedUsageStat).Trace("Rated Usage Stat")
+		ratedUsageStat.BillingTags = make([]RatedUsageTagInfo, 0)
 
 		return &ratedUsageStat
 	}
 
 	return nil
-}
-
-func GetBillingTagsFromInstance(serverId string, config BmcApiConfiguration) []RatedUsageTagInfo {
-	var tags []RatedUsageTagInfo
-
-	apiClient := getBmcApiClient(config.ToClientCredentials())
-	resp, r, err := apiClient.ServersApi.ServersServerIdGet(getContext(), serverId).Execute()
-	if err != nil {
-		log.WithField("HttpResponse", r).WithError(err).Error("Error when calling `ServersApi.ServersServerIdGet`.")
-		return tags
-	}
-
-	for _, tag := range resp.GetTags() {
-		var ratedUsageTag RatedUsageTagInfo
-
-		if tag.GetIsBillingTag() {
-			ratedUsageTag.Key = tag.GetName()
-			ratedUsageTag.Value = tag.GetValue()
-			tags = append(tags, ratedUsageTag)
-		}
-	}
-
-	return tags
 }
