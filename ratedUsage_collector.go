@@ -10,18 +10,23 @@ var _ prometheus.Collector = &ratedUsageCollector{}
 
 type ratedUsageCollector struct {
 	RatedUsageCost *prometheus.Desc
+	BillingTags    []string
 	stats          func() ([]RatedUsageStats, error)
 }
 
-func NewRatedUsageCollector(stats func() ([]RatedUsageStats, error)) prometheus.Collector {
+func NewRatedUsageCollector(stats func() ([]RatedUsageStats, error), billingTags []string) prometheus.Collector {
+	labels := []string{"productCode", "locationCode", "hostname", "priceModel", "productCategory", "yearMonth"}
+	labels = append(labels, billingTags...)
+	log.WithField("labels", labels).Debug("NewRatedUsageCollector load labels")
 	q := ratedUsageCollector{
 		RatedUsageCost: prometheus.NewDesc(
 			"bmc_rated_usage_cost_total",
 			"Total rated usage cost of actively provisioned resources.",
-			[]string{"productCode", "locationCode", "hostname", "priceModel", "productCategory", "yearMonth"},
+			labels,
 			nil,
 		),
-		stats: stats,
+		BillingTags: billingTags,
+		stats:       stats,
 	}
 
 	log.WithField("RatedUsageCollector", q).Info("Created New Rated Usage Collector")
@@ -47,16 +52,6 @@ func (c *ratedUsageCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	for _, s := range stats {
-		ch <- prometheus.MustNewConstMetric(
-			c.RatedUsageCost,
-			prometheus.CounterValue,
-			s.Cost,
-			s.ProductCode,
-			s.Location,
-			s.Hostname,
-			s.PriceModel,
-			s.ProductCategory,
-			s.YearMonth,
-		)
+		ch <- s.ToPrometheusMetric(c.RatedUsageCost, c.BillingTags)
 	}
 }

@@ -49,7 +49,7 @@ func main() {
 
 	qc := exporter.NewQuotaCollector(quotaStats)
 	rc := exporter.NewReservationCollector(reservationStats)
-	ru := exporter.NewRatedUsageCollector(ratedUsageStats)
+	ru := exporter.NewRatedUsageCollector(ratedUsageStats, []string{"Product"})
 
 	reg := prometheus.NewRegistry()
 	if *collectGoMetrics {

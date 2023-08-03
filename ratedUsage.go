@@ -1,10 +1,12 @@
 package exporter
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/phoenixnap/go-sdk-bmc/billingapi"
 	"github.com/phoenixnap/go-sdk-bmc/bmcapi"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -25,14 +27,16 @@ type RatedUsageStats struct {
 }
 
 var priorMonthsRatedUsageLoaded bool = false
+var servers []bmcapi.Server
 
 func GetRatedUsageStats(config BmcApiConfiguration) ([]RatedUsageStats, error) {
 	apiClient := getBillingApiClient(config.ToClientCredentials())
 	bmcClient := getBmcApiClient(config.ToClientCredentials())
 
 	var stats []RatedUsageStats
-
-	servers, r, err := bmcClient.ServersApi.ServersGet(getContext()).Execute()
+	var r *http.Response
+	var err error
+	servers, r, err = bmcClient.ServersApi.ServersGet(getContext()).Execute()
 	if err != nil {
 		log.WithField("HttpResponse", r).WithError(err).Error("Error when calling `ServersApi.ServersGet`.")
 		return stats, err
@@ -52,7 +56,7 @@ func GetRatedUsageStats(config BmcApiConfiguration) ([]RatedUsageStats, error) {
 		}
 
 		for _, ratedUsage := range resp {
-			if ratedUsageStat := ConvertRatedUsageServerRecordToStats(ratedUsage.ServerRecord, servers); ratedUsageStat != nil {
+			if ratedUsageStat := ConvertRatedUsageServerRecordToStats(ratedUsage.ServerRecord); ratedUsageStat != nil {
 				stats = append(stats, *ratedUsageStat)
 			}
 		}
@@ -66,7 +70,7 @@ func GetRatedUsageStats(config BmcApiConfiguration) ([]RatedUsageStats, error) {
 		}
 
 		for _, ratedUsage := range resp {
-			if ratedUsageStat := ConvertRatedUsageServerRecordToStats(ratedUsage.ServerRecord, servers); ratedUsageStat != nil {
+			if ratedUsageStat := ConvertRatedUsageServerRecordToStats(ratedUsage.ServerRecord); ratedUsageStat != nil {
 				stats = append(stats, *ratedUsageStat)
 			}
 		}
@@ -75,7 +79,7 @@ func GetRatedUsageStats(config BmcApiConfiguration) ([]RatedUsageStats, error) {
 	return stats, nil
 }
 
-func ConvertRatedUsageServerRecordToStats(record *billingapi.ServerRecord, servers []bmcapi.Server) *RatedUsageStats {
+func ConvertRatedUsageServerRecordToStats(record *billingapi.ServerRecord) *RatedUsageStats {
 	var ratedUsageStat RatedUsageStats
 
 	if record.GetActive() {
@@ -86,9 +90,7 @@ func ConvertRatedUsageServerRecordToStats(record *billingapi.ServerRecord, serve
 		ratedUsageStat.ProductCategory = record.GetProductCategory()
 		ratedUsageStat.ProductCode = record.GetProductCode()
 		ratedUsageStat.YearMonth = record.GetYearMonth()
-
-		s := GetServerFromList(record.GetId(), servers)
-		ratedUsageStat.BillingTags = GetBillingTagsFromServer(s)
+		ratedUsageStat.BillingTags = GetBillingTagsFromServers(record.GetId())
 
 		return &ratedUsageStat
 	}
@@ -96,28 +98,52 @@ func ConvertRatedUsageServerRecordToStats(record *billingapi.ServerRecord, serve
 	return nil
 }
 
-func GetServerFromList(serverId string, servers []bmcapi.Server) *bmcapi.Server {
-	for _, s := range servers {
-		if s.GetId() == serverId {
-			return &s
-		}
-	}
-	return nil
-}
-
-func GetBillingTagsFromServer(server *bmcapi.Server) []RatedUsageTagInfo {
+func GetBillingTagsFromServers(serverId string) []RatedUsageTagInfo {
 	tags := make([]RatedUsageTagInfo, 0)
 
-	if server != nil {
-		for _, t := range server.GetTags() {
-			if t.GetIsBillingTag() {
-				tags = append(tags, RatedUsageTagInfo{
-					Key:   t.GetName(),
-					Value: t.GetValue(),
-				})
+	for _, s := range servers {
+		if s.GetId() == serverId {
+			for _, t := range s.GetTags() {
+				if t.GetIsBillingTag() {
+					tags = append(tags, RatedUsageTagInfo{
+						Key:   t.GetName(),
+						Value: t.GetValue(),
+					})
+					return tags
+				}
 			}
 		}
 	}
 
 	return tags
+}
+
+func (s *RatedUsageStats) ToPrometheusMetric(desc *prometheus.Desc, billingLabels []string) prometheus.Metric {
+	labelValues := []string{
+		s.ProductCode,
+		s.Location,
+		s.Hostname,
+		s.PriceModel,
+		s.ProductCategory,
+		s.YearMonth,
+	}
+
+	log.WithField("s", s).Trace("ToPrometheusMetrix")
+	for _, label := range billingLabels {
+		var value string = "untagged"
+		for _, t := range s.BillingTags {
+			if t.Key == label {
+				value = t.Value
+				break
+			}
+		}
+		labelValues = append(labelValues, value)
+	}
+
+	return prometheus.MustNewConstMetric(
+		desc,
+		prometheus.CounterValue,
+		s.Cost,
+		labelValues...,
+	)
 }
